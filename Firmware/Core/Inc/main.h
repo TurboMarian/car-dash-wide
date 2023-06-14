@@ -61,14 +61,14 @@ void show_neopixels();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_ACTIVE_Pin GPIO_PIN_2
-#define LED_ACTIVE_GPIO_Port GPIOE
-#define LED_ALERT_Pin GPIO_PIN_3
-#define LED_ALERT_GPIO_Port GPIOE
-#define LED_CAN1_Pin GPIO_PIN_4
-#define LED_CAN1_GPIO_Port GPIOE
-#define LED_CAN2_Pin GPIO_PIN_5
+#define LED_CAN2_Pin GPIO_PIN_2
 #define LED_CAN2_GPIO_Port GPIOE
+#define LED_CAN1_Pin GPIO_PIN_3
+#define LED_CAN1_GPIO_Port GPIOE
+#define LED_ALERT_Pin GPIO_PIN_4
+#define LED_ALERT_GPIO_Port GPIOE
+#define LED_ACTIVE_Pin GPIO_PIN_5
+#define LED_ACTIVE_GPIO_Port GPIOE
 #define TOUCH_RST_PC13_Pin GPIO_PIN_13
 #define TOUCH_RST_PC13_GPIO_Port GPIOC
 #define LCD_VS_PI9_Pin GPIO_PIN_9

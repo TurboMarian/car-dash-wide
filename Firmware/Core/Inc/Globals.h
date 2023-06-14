@@ -13,14 +13,10 @@ extern "C" {
 #include <Def/STORAGE_Def.h>
 #include <Def/SCREEN_Def.h>
 
-
-#define CAN_ENABLED				1
-#define RGB_ENABLED				1
-
 #define CAN_SETUP_ID			0x580
 
 #define LED_DEFAULT_BRIGHTNESS	50
-#define LCD_DEFAULT_BRIGHTNESS	400
+#define LCD_DEFAULT_BRIGHTNESS	1000
 
 #define PROTECTION_RPM_LOW 		6500
 #define PROTECTION_RPM_HIGH 	8000
@@ -63,6 +59,10 @@ struct RGBLED {
 };
 
 typedef struct {
+
+	uint8_t CAN_ENABLED;
+	uint8_t RGB_ENABLED;
+	uint8_t RPM_SWEEP;
 
 	uint8_t PRES_UNIT;
 	uint8_t TEMP_UNIT;
@@ -118,6 +118,8 @@ typedef struct {
 	uint16_t OILP;
 	int16_t FUELT;
 	int16_t OILT;
+
+	int16_t FUELLEVEL;
 
 	uint16_t BH1750_LUX;
 

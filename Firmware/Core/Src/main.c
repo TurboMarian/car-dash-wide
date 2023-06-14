@@ -50,13 +50,13 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 //#define LCD_ORIENTATION_LANDSCAPE 0x01
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
 CAN_HandleTypeDef hcan1;
+CAN_HandleTypeDef hcan2;
 
 CRC_HandleTypeDef hcrc;
 
@@ -80,35 +80,14 @@ const osThreadAttr_t START_Task_attributes = {
 osThreadId_t TouchGFXTaskHandle;
 const osThreadAttr_t TouchGFXTask_attributes = {
   .name = "TouchGFXTask",
-  .stack_size = 2048 * 4,
+  .stack_size = 4096 * 4,
   .priority = (osPriority_t) osPriorityHigh,
-};
-/* Definitions for LED_Task */
-osThreadId_t LED_TaskHandle;
-const osThreadAttr_t LED_Task_attributes = {
-  .name = "LED_Task",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for CAN_Task */
-osThreadId_t CAN_TaskHandle;
-const osThreadAttr_t CAN_Task_attributes = {
-  .name = "CAN_Task",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for ALERT_Task */
-osThreadId_t ALERT_TaskHandle;
-const osThreadAttr_t ALERT_Task_attributes = {
-  .name = "ALERT_Task",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for RGB_Task */
 osThreadId_t RGB_TaskHandle;
 const osThreadAttr_t RGB_Task_attributes = {
   .name = "RGB_Task",
-  .stack_size = 512 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
@@ -137,11 +116,9 @@ static void MX_TIM13_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_CAN2_Init(void);
 void Start_START_Task(void *argument);
 void TouchGFX_Task(void *argument);
-void Start_LED_Task(void *argument);
-void Start_CAN_Task(void *argument);
-void Start_ALERT_Task(void *argument);
 void Start_RGB_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -187,13 +164,13 @@ int main(void)
   MX_CAN1_Init();
   MX_ADC1_Init();
   MX_TIM1_Init();
+  MX_CAN2_Init();
   MX_TouchGFX_Init();
   /* Call PreOsInit function */
   MX_TouchGFX_PreOSInit();
   /* USER CODE BEGIN 2 */
 
-  HAL_TIM_PWM_Start(&htim13, TIM_CHANNEL_1);
-  initWS2812();
+	initAll();
 
   /* USER CODE END 2 */
 
@@ -222,15 +199,6 @@ int main(void)
 
   /* creation of TouchGFXTask */
   TouchGFXTaskHandle = osThreadNew(TouchGFX_Task, NULL, &TouchGFXTask_attributes);
-
-  /* creation of LED_Task */
-  LED_TaskHandle = osThreadNew(Start_LED_Task, NULL, &LED_Task_attributes);
-
-  /* creation of CAN_Task */
-  CAN_TaskHandle = osThreadNew(Start_CAN_Task, NULL, &CAN_Task_attributes);
-
-  /* creation of ALERT_Task */
-  ALERT_TaskHandle = osThreadNew(Start_ALERT_Task, NULL, &ALERT_Task_attributes);
 
   /* creation of RGB_Task */
   RGB_TaskHandle = osThreadNew(Start_RGB_Task, NULL, &RGB_Task_attributes);
@@ -410,10 +378,73 @@ static void MX_CAN1_Init(void)
 		/* Start Error */
 		Error_Handler();
 	}
-
+	if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING)
+			!= HAL_OK) {
+		Error_Handler();
+	}
 	__HAL_RCC_CAN1_CLK_ENABLE();
-	//__HAL_RCC_CAN2_CLK_ENABLE();
   /* USER CODE END CAN1_Init 2 */
+
+}
+
+/**
+  * @brief CAN2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CAN2_Init(void)
+{
+
+  /* USER CODE BEGIN CAN2_Init 0 */
+
+	CAN_FilterTypeDef sFilterConfig; //declare CAN filter structure
+  /* USER CODE END CAN2_Init 0 */
+
+  /* USER CODE BEGIN CAN2_Init 1 */
+
+  /* USER CODE END CAN2_Init 1 */
+  hcan2.Instance = CAN2;
+  hcan2.Init.Prescaler = 16;
+  hcan2.Init.Mode = CAN_MODE_NORMAL;
+  hcan2.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan2.Init.TimeSeg1 = CAN_BS1_1TQ;
+  hcan2.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan2.Init.TimeTriggeredMode = DISABLE;
+  hcan2.Init.AutoBusOff = DISABLE;
+  hcan2.Init.AutoWakeUp = DISABLE;
+  hcan2.Init.AutoRetransmission = DISABLE;
+  hcan2.Init.ReceiveFifoLocked = DISABLE;
+  hcan2.Init.TransmitFifoPriority = DISABLE;
+  if (HAL_CAN_Init(&hcan2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CAN2_Init 2 */
+
+	sFilterConfig.FilterBank = 15;
+	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+	sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+	sFilterConfig.FilterIdHigh = 0x0000;
+	sFilterConfig.FilterIdLow = 0x0000;
+	sFilterConfig.FilterMaskIdHigh = 0x0000;
+	sFilterConfig.FilterMaskIdLow = 0x0000;
+	sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+	sFilterConfig.FilterActivation = ENABLE;
+	//sFilterConfig.SlaveStartFilterBank = 14;
+	if (HAL_CAN_ConfigFilter(&hcan2, &sFilterConfig) != HAL_OK) {
+		/* Filter configuration Error */
+		Error_Handler();
+	}
+	if (HAL_CAN_Start(&hcan2) != HAL_OK) {
+		/* Start Error */
+		Error_Handler();
+	}
+	if (HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	__HAL_RCC_CAN2_CLK_ENABLE();
+  /* USER CODE END CAN2_Init 2 */
 
 }
 
@@ -713,7 +744,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, LED_ACTIVE_Pin|LED_ALERT_Pin|LED_CAN1_Pin|LED_CAN2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, LED_CAN2_Pin|LED_CAN1_Pin|LED_ALERT_Pin|LED_ACTIVE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(TOUCH_RST_PC13_GPIO_Port, TOUCH_RST_PC13_Pin, GPIO_PIN_RESET);
@@ -734,8 +765,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SPI1_FLASH_GPIO_Port, SPI1_FLASH_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : LED_ACTIVE_Pin LED_ALERT_Pin LED_CAN1_Pin LED_CAN2_Pin */
-  GPIO_InitStruct.Pin = LED_ACTIVE_Pin|LED_ALERT_Pin|LED_CAN1_Pin|LED_CAN2_Pin;
+  /*Configure GPIO pins : LED_CAN2_Pin LED_CAN1_Pin LED_ALERT_Pin LED_ACTIVE_Pin */
+  GPIO_InitStruct.Pin = LED_CAN2_Pin|LED_CAN1_Pin|LED_ALERT_Pin|LED_ACTIVE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -756,8 +787,8 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : CAN1_S0_Pin CAN2_S0_Pin */
   GPIO_InitStruct.Pin = CAN1_S0_Pin|CAN2_S0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
@@ -783,14 +814,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PB12 PB13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF9_CAN2;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA8 */
@@ -859,393 +882,273 @@ long mapInt(float x, float in_min, float in_max, int out_min, int out_max) {
 			+ out_min);
 }
 
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_Start_START_Task */
-/**
- * @brief  Function implementing the START_Task thread.
- * @param  argument: Not used
- * @retval None
- */
-/* USER CODE END Header_Start_START_Task */
-void Start_START_Task(void *argument)
-{
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN 5 */
-	//htim13.Instance->CCR1 = (htim13.Instance->ARR) * 0.99;
-	Current_Status.LED_BRIGHTNESS = LED_DEFAULT_BRIGHTNESS;
-	Current_Status.LCD_BRIGHTNESS = LCD_DEFAULT_BRIGHTNESS;
-	Current_Status.LCD_BRIGHTNESS_CHANGED = 1;
-
-	if (Current_Status.LCD_BRIGHTNESS_CHANGED == 1) {
-		htim13.Instance->CCR1 = Current_Status.LCD_BRIGHTNESS;
-		Current_Status.LCD_BRIGHTNESS_CHANGED = 0;
-	}
-	/* Infinite loop */
-	for (;;) {
-		osDelay(1);
-	}
-  /* USER CODE END 5 */
+void Update_RPM_Ranges() {
+	Current_Status.RPM_100 = mapInt(Current_Status.RPM, 0,
+	PROTECTION_RPM_HIGH, 0, 100);
+	Current_Status.RPM_100 =
+			Current_Status.RPM_100 >= 100 ? 100 : Current_Status.RPM_100;
+	Current_Status.RPM_180 = mapInt(Current_Status.RPM, 0,
+	PROTECTION_RPM_HIGH, 0, 180);
+	Current_Status.RPM_180 =
+			Current_Status.RPM_180 >= 180 ? 810 : Current_Status.RPM_180;
+	Current_Status.RPM_270 = mapInt(Current_Status.RPM, 0,
+	PROTECTION_RPM_HIGH, 0, 270);
+	Current_Status.RPM_270 =
+			Current_Status.RPM_270 >= 270 ? 270 : Current_Status.RPM_270;
+	Current_Status.RPM_240 = mapInt(Current_Status.RPM, 0,
+	PROTECTION_RPM_HIGH, 0, 240);
+	Current_Status.RPM_240 =
+			Current_Status.RPM_240 >= 240 ? 240 : Current_Status.RPM_240;
+	Current_Status.RPM_360 = mapInt(Current_Status.RPM, 0,
+	PROTECTION_RPM_HIGH, 0, 360);
+	Current_Status.RPM_360 =
+			Current_Status.RPM_360 >= 360 ? 360 : Current_Status.RPM_360;
 }
 
-/* USER CODE BEGIN Header_TouchGFX_Task */
-/**
- * @brief Function implementing the TouchGFXTask thread.
- * @param argument: Not used
- * @retval None
- */
-/* USER CODE END Header_TouchGFX_Task */
-__weak void TouchGFX_Task(void *argument)
-{
-  /* USER CODE BEGIN TouchGFX_Task */
-	/* Infinite loop */
-	for (;;) {
-		osDelay(1);
-	}
-  /* USER CODE END TouchGFX_Task */
-}
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+	if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData)
+			== HAL_OK) {
+		if (Current_Status.CAN_ENABLED == 1) {
 
-/* USER CODE BEGIN Header_Start_LED_Task */
-/**
- * @brief Function implementing the LED_Task thread.
- * @param argument: Not used
- * @retval None
- */
-/* USER CODE END Header_Start_LED_Task */
-void Start_LED_Task(void *argument)
-{
-  /* USER CODE BEGIN Start_LED_Task */
-	/* Infinite loop */
-	for (;;) {
-		HAL_GPIO_TogglePin(LED_ACTIVE_GPIO_Port, LED_ACTIVE_Pin);
-		osDelay(100);
-		HAL_GPIO_TogglePin(LED_ALERT_GPIO_Port, LED_ALERT_Pin);
-		osDelay(100);
-//		HAL_GPIO_TogglePin(CAN1_S0_GPIO_Port, CAN1_S0_Pin);
-//		osDelay(100);
-//		HAL_GPIO_TogglePin(CAN2_S0_GPIO_Port, CAN2_S0_Pin);
-//		osDelay(100);
-
-	}
-  /* USER CODE END Start_LED_Task */
-}
-
-/* USER CODE BEGIN Header_Start_CAN_Task */
-/**
- * @brief Function implementing the CAN_Task thread.
- * @param argument: Not used
- * @retval None
- */
-/* USER CODE END Header_Start_CAN_Task */
-void Start_CAN_Task(void *argument)
-{
-  /* USER CODE BEGIN Start_CAN_Task */
-	/* Infinite loop */
-	Current_Status.CAN_PROTOCOL = CAN_AIM;
-	Current_Status.PRES_UNIT = kPa;
-	Current_Status.TEMP_UNIT = C;
-	Current_Status.SPEED_UNIT = Kmh;
-	//HAL_GPIO_WritePin(CAN1_S0_GPIO_Port, CAN1_S0_Pin, SET);
-	//HAL_GPIO_WritePin(CAN2_S0_GPIO_Port, CAN2_S0_Pin, SET);
-
-	//HAL_GPIO_WritePin(LED_CAN1_GPIO_Port, LED_CAN1_Pin, SET);
-
-	for (;;) {
-		if (CAN_ENABLED) {
-
-			if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData)
-					== HAL_OK) {
-				switch (Current_Status.CAN_PROTOCOL) {
-				case CAN_LINK:
-					switch (RxHeader.StdId) {
-					case 0x7E8:
-						switch (RxData[2]) {
-						case 0x05: //PID-0x05 Engine coolant temperature , range is -40 to 215 deg C , formula == A-40
-							Current_Status.ECT = RxData[3] - 40;
-							break;
-						case 0x0B: // PID-0x0B , MAP , range is 0 to 255 kPa , Formula == A
-							Current_Status.MAP = RxData[3];
-							break;
-						case 0x0C: // PID-0x0C , RPM  , range is 0 to 16383.75 rpm , Formula == 256A+B / 4
-							Current_Status.RPM = (uint16_t) ((RxData[4] << 8)
-									+ (RxData[3] & 0x00ff));
-							break;
-						case 0x0D: //PID-0x0D , Vehicle speed , range is 0 to 255 km/h , formula == A
-							Current_Status.LF_SPEED = RxData[3];
-							break;
-						case 0x0E: //PID-0x0E , Ignition Timing advance, range is -64 to 63.5 BTDC , formula == A/2 - 64
-							Current_Status.IGN_TIM = RxData[3] / 2 - 64;
-							break;
-						case 0x0F: //PID-0x0F , Inlet air temperature , range is -40 to 215 deg C, formula == A-40
-							Current_Status.IAT = RxData[3] - 40;
-							break;
-						case 0x11: // PID-0x11 , TPS percentage, range is 0 to 100 percent, formula == 100/256 A
-							Current_Status.TPS = 100 / 256 * RxData[3];
-							break;
-						case 0x13: //PID-0x13 , oxygen sensors present, A0-A3 == bank1 , A4-A7 == bank2
-							break;
-						case 0x1C: // PID-0x1C obd standard
-							break;
-						case 0x20: // PID-0x20 PIDs supported [21-40]
-							break;
-						case 0x22: // PID-0x22 Fuel /Pressure (Relative to manifold vacuum) , range is 0 to 5177.265 kPa , formula == 0.079(256A+B)
-							Current_Status.FUELP = 0.079
-									* (256 * (uint16_t) (RxData[4] << 8)
-											+ (RxData[3] & 0x00ff));
-							break;
-						case 0x24: // PID-0x24 O2 sensor2, AB: fuel/air equivalence ratio, CD: voltage ,  Formula == (2/65536)(256A +B) , 8/65536(256C+D) , Range is 0 to <2 and 0 to >8V
-							Current_Status.LAMBDA1 = (2 / 65536)
-									* (256 * (uint16_t) (RxData[4] << 8)
-											+ (RxData[3] & 0x00ff)); // , 8 / 65536 * (256 * (uint16_t)(RxData[5] << 8) + (RxData[6] & 0x00ff));
-							break;
-						case 0x25: // PID-0x25 O2 sensor2, AB fuel/air equivalence ratio, CD voltage ,  2/65536(256A +B) ,8/65536(256C+D) , range is 0 to <2 and 0 to >8V
-							Current_Status.LAMBDA2 = (2 / 65536)
-									* (256 * (uint16_t) (RxData[4] << 8)
-											+ (RxData[3] & 0x00ff)); // , 8 / 65536 * (256 * (uint16_t)(RxData[5] << 8) + (RxData[6] & 0x00ff));
-							break;
-						case 0x33: // PID-0x33 Absolute Barometric pressure , range is 0 to 255 kPa , formula == A
-							Current_Status.BARO = RxData[3];
-							break;
-						case 0x40: // PIDs supported [41-60]
-							break;
-						case 0x42: // PID-0x42 control module voltage, 256A+B / 1000 , range is 0 to 65.535v
-							Current_Status.BATT = 256
-									* (uint16_t) (RxData[4] << 8)
-									+ (RxData[3] & 0x00ff) / 1000;
-							break;
-						case 0x46: // PID-0x46 Ambient Air Temperature , range is -40 to 215 deg C , formula == A-40
-							break;
-						case 0x52: // PID-0x52 Ethanol fuel % , range is 0 to 100% , formula == (100/255)A
-							Current_Status.ETHANOL = 100 / 255 * RxData[3];
-							break;
-						case 0x5C: // PID-0x5C Engine oil temperature , range is -40 to 210 deg C , formula == A-40
-							Current_Status.OILT = RxData[3] - 40;
-							break;
-						case 0x60: // PIDs supported [61-80]
-							break;
-						default:
-							break;
-						}
+			HAL_GPIO_TogglePin(LED_CAN1_GPIO_Port, LED_CAN1_Pin);
+			switch (Current_Status.CAN_PROTOCOL) {
+			case CAN_LINK:
+				switch (RxHeader.StdId) {
+				case 0x7E8:
+					switch (RxData[2]) {
+					case 0x05: // PID-0x05 Engine coolant temperature , range is -40 to 215 deg C , formula == A-40
+						Current_Status.ECT = RxData[3] - 40;
 						break;
-					case 0x3E8: //Link Dash
-						switch (RxData[0]) {
-						case 0:
-							Current_Status.RPM = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.MAP = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.MGP = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 1:
-							Current_Status.BARO = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.TPS = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.INJ_DC = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 2:
-							Current_Status.INJ_DC_ST = (uint16_t) ((RxData[3]
-									<< 8) + (RxData[2] & 0x00ff));
-							Current_Status.INJ_PULSE = (uint16_t) ((RxData[5]
-									<< 8) + (RxData[4] & 0x00ff));
-							Current_Status.ECT = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 3:
-							Current_Status.IAT = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.BATT = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.MAF = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 4:
-							Current_Status.GEAR = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.INJ_TIM =
-									(uint16_t) ((RxData[5] << 8)
-											+ (RxData[4] & 0x00ff));
-							Current_Status.IGN_TIM =
-									(uint16_t) ((RxData[7] << 8)
-											+ (RxData[6] & 0x00ff));
-							break;
-						case 5:
-							Current_Status.CAM_I_L =
-									(uint16_t) ((RxData[3] << 8)
-											+ (RxData[2] & 0x00ff));
-							Current_Status.CAM_I_R =
-									(uint16_t) ((RxData[5] << 8)
-											+ (RxData[4] & 0x00ff));
-							Current_Status.CAM_E_L =
-									(uint16_t) ((RxData[7] << 8)
-											+ (RxData[6] & 0x00ff));
-							break;
-						case 6:
-							Current_Status.CAM_E_R =
-									(uint16_t) ((RxData[3] << 8)
-											+ (RxData[2] & 0x00ff));
-							Current_Status.LAMBDA1 =
-									(uint16_t) ((RxData[5] << 8)
-											+ (RxData[4] & 0x00ff));
-							Current_Status.LAMBDA2 =
-									(uint16_t) ((RxData[7] << 8)
-											+ (RxData[6] & 0x00ff));
-							break;
-						case 7:
-							Current_Status.TRIG1_ERROR = (uint16_t) ((RxData[3]
-									<< 8) + (RxData[2] & 0x00ff));
-							Current_Status.FAULT_CODES = (uint16_t) ((RxData[5]
-									<< 8) + (RxData[4] & 0x00ff));
-							Current_Status.FUELP = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 8:
-							Current_Status.OILT = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.OILP = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.LF_SPEED = (uint16_t) ((RxData[7]
-									<< 8) + (RxData[6] & 0x00ff));
-							break;
-						case 9:
-							Current_Status.LR_SPEED = (uint16_t) ((RxData[3]
-									<< 8) + (RxData[2] & 0x00ff));
-							Current_Status.RF_SPEED = (uint16_t) ((RxData[5]
-									<< 8) + (RxData[4] & 0x00ff));
-							Current_Status.RR_SPEED = (uint16_t) ((RxData[7]
-									<< 8) + (RxData[6] & 0x00ff));
-							break;
-						case 10:
-							Current_Status.KNOCK1 = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.KNOCK2 = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.KNOCK3 = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 11:
-							Current_Status.KNOCK4 = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.KNOCK5 = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.KNOCK6 = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						case 12:
-							Current_Status.KNOCK7 = (uint16_t) ((RxData[3] << 8)
-									+ (RxData[2] & 0x00ff));
-							Current_Status.KNOCK8 = (uint16_t) ((RxData[5] << 8)
-									+ (RxData[4] & 0x00ff));
-							Current_Status.LIMITS = (uint16_t) ((RxData[7] << 8)
-									+ (RxData[6] & 0x00ff));
-							break;
-						}
+					case 0x0B: // PID-0x0B , MAP , range is 0 to 255 kPa , Formula == A
+						Current_Status.MAP = RxData[3];
+						break;
+					case 0x0C: // PID-0x0C , RPM  , range is 0 to 16383.75 rpm , Formula == 256A+B / 4
+						Current_Status.RPM = (uint16_t) ((RxData[4] << 8)
+								+ (RxData[3] & 0x00ff));
+						break;
+					case 0x0D: // PID-0x0D , Vehicle speed , range is 0 to 255 km/h , formula == A
+						Current_Status.LF_SPEED = RxData[3];
+						break;
+					case 0x0E: // PID-0x0E , Ignition Timing advance, range is -64 to 63.5 BTDC , formula == A/2 - 64
+						Current_Status.IGN_TIM = RxData[3] / 2 - 64;
+						break;
+					case 0x0F: // PID-0x0F , Inlet air temperature , range is -40 to 215 deg C, formula == A-40
+						Current_Status.IAT = RxData[3] - 40;
+						break;
+					case 0x11: // PID-0x11 , TPS percentage, range is 0 to 100 percent, formula == 100/256 A
+						Current_Status.TPS = 100 / 256 * RxData[3];
+						break;
+					case 0x13: // PID-0x13 , oxygen sensors present, A0-A3 == bank1 , A4-A7 == bank2
+						break;
+					case 0x1C: // PID-0x1C obd standard
+						break;
+					case 0x20: // PID-0x20 PIDs supported [21-40]
+						break;
+					case 0x22: // PID-0x22 Fuel /Pressure (Relative to manifold vacuum) , range is 0 to 5177.265 kPa , formula == 0.079(256A+B)
+						Current_Status.FUELP = 0.079
+								* (256 * (uint16_t) (RxData[4] << 8)
+										+ (RxData[3] & 0x00ff));
+						break;
+					case 0x24: // PID-0x24 O2 sensor2, AB: fuel/air equivalence ratio, CD: voltage ,  Formula == (2/65536)(256A +B) , 8/65536(256C+D) , Range is 0 to <2 and 0 to >8V
+						Current_Status.LAMBDA1 = (2 / 65536)
+								* (256 * (uint16_t) (RxData[4] << 8)
+										+ (RxData[3] & 0x00ff)); // , 8 / 65536 * (256 * (uint16_t)(RxData[5] << 8) + (RxData[6] & 0x00ff));
+						break;
+					case 0x25: // PID-0x25 O2 sensor2, AB fuel/air equivalence ratio, CD voltage ,  2/65536(256A +B) ,8/65536(256C+D) , range is 0 to <2 and 0 to >8V
+						Current_Status.LAMBDA2 = (2 / 65536)
+								* (256 * (uint16_t) (RxData[4] << 8)
+										+ (RxData[3] & 0x00ff)); // , 8 / 65536 * (256 * (uint16_t)(RxData[5] << 8) + (RxData[6] & 0x00ff));
+						break;
+					case 0x33: // PID-0x33 Absolute Barometric pressure , range is 0 to 255 kPa , formula == A
+						Current_Status.BARO = RxData[3];
+						break;
+					case 0x40: // PIDs supported [41-60]
+						break;
+					case 0x42: // PID-0x42 control module voltage, 256A+B / 1000 , range is 0 to 65.535v
+						Current_Status.BATT = 256 * (uint16_t) (RxData[4] << 8)
+								+ (RxData[3] & 0x00ff) / 1000;
+						break;
+					case 0x46: // PID-0x46 Ambient Air Temperature , range is -40 to 215 deg C , formula == A-40
+						break;
+					case 0x52: // PID-0x52 Ethanol fuel % , range is 0 to 100% , formula == (100/255)A
+						Current_Status.ETHANOL = 100 / 255 * RxData[3];
+						break;
+					case 0x5C: // PID-0x5C Engine oil temperature , range is -40 to 210 deg C , formula == A-40
+						Current_Status.OILT = RxData[3] - 40;
+						break;
+					case 0x60: // PIDs supported [61-80]
+						break;
+					default:
 						break;
 					}
 					break;
-				case CAN_AIM:
-					switch (RxHeader.StdId) {
-					case 0x5F0:
-						Current_Status.RPM = (uint16_t) ((RxData[1] << 8) + (RxData[0] & 0x00ff));
-						Current_Status.TPS = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 65;
-						break;
-					case 0x5F2:
-						Current_Status.IAT = (uint16_t)((RxData[1] << 8) + (RxData[0] & 0x00ff)) / 19 - 450;
-						Current_Status.ECT = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 19 - 450;
-						Current_Status.FUELT = (uint16_t)((RxData[5] << 8) + (RxData[4] & 0x00ff)) / 19 - 450;
-						Current_Status.OILT = (uint16_t)((RxData[7] << 8) + (RxData[6] & 0x00ff)) / 19 - 450;
-						break;
-					case 0x5F3:
-						Current_Status.MAP = (uint16_t)((RxData[1] << 8) + (RxData[0] & 0x00ff)) / 10;
-						Current_Status.BARO = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 10;
-						Current_Status.OILP = (uint16_t)((RxData[5] << 8) + (RxData[4] & 0x00ff)) * 100 / 100;
-						Current_Status.FUELP = (uint16_t)((RxData[7] << 8) + (RxData[6] & 0x00ff)) * 100 / 2;
-						break;
-					case 0x5F4:
-						Current_Status.BATT = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 32;
-						//Current_Status.GEAR = (uint16_t)((RxData[7] << 8) + (RxData[6] & 0x00ff));
-						break;
-					case 0x5F6:
-						Current_Status.LAMBDA1 = (uint16_t)((RxData[1] << 8) + (RxData[0] & 0x00ff)) / 2;
-						Current_Status.LAMBDA2 = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 2;
-						break;
-					}
-					break;
-				default:
-					break;
-				}
-
-				if(RxHeader.StdId == CAN_SETUP_ID)
-				{
+				case 0x3E8: // Link Dash
 					switch (RxData[0]) {
-						case 0x00: //READ START
-
-							break;
-						case 0xA0: //SETUP DEVICE
-
-							break;
-						case 0xB0: //SETUP FIELD
-							//setAllFields(&RxData);
-							break;
-						case 0xC0: //SETUP CHANNEL
-
-							break;
-						case 0xD0: //SETUP ERROR
-
-							break;
+					case 0:
+						Current_Status.RPM = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.MAP = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.MGP = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 1:
+						Current_Status.BARO = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.TPS = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.INJ_DC = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 2:
+						Current_Status.INJ_DC_ST = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.INJ_PULSE = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.ECT = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 3:
+						Current_Status.IAT = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.BATT = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.MAF = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 4:
+						Current_Status.GEAR = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.INJ_TIM = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.IGN_TIM = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 5:
+						Current_Status.CAM_I_L = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.CAM_I_R = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.CAM_E_L = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 6:
+						Current_Status.CAM_E_R = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.LAMBDA1 = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.LAMBDA2 = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 7:
+						Current_Status.TRIG1_ERROR =
+								(uint16_t) ((RxData[3] << 8)
+										+ (RxData[2] & 0x00ff));
+						Current_Status.FAULT_CODES =
+								(uint16_t) ((RxData[5] << 8)
+										+ (RxData[4] & 0x00ff));
+						Current_Status.FUELP = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 8:
+						Current_Status.OILT = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.OILP = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.LF_SPEED = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 9:
+						Current_Status.LR_SPEED = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.RF_SPEED = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.RR_SPEED = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 10:
+						Current_Status.KNOCK1 = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.KNOCK2 = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.KNOCK3 = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 11:
+						Current_Status.KNOCK4 = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.KNOCK5 = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.KNOCK6 = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
+					case 12:
+						Current_Status.KNOCK7 = (uint16_t) ((RxData[3] << 8)
+								+ (RxData[2] & 0x00ff));
+						Current_Status.KNOCK8 = (uint16_t) ((RxData[5] << 8)
+								+ (RxData[4] & 0x00ff));
+						Current_Status.LIMITS = (uint16_t) ((RxData[7] << 8)
+								+ (RxData[6] & 0x00ff));
+						break;
 					}
+					break;
 				}
-
-				Current_Status.RPM_100 = mapInt(Current_Status.RPM, 0,
-						PROTECTION_RPM_HIGH, 0, 100);
-				Current_Status.RPM_100 =
-						Current_Status.RPM_100 >= 100 ?
-								100 : Current_Status.RPM_100;
-				Current_Status.RPM_180 = mapInt(Current_Status.RPM, 0,
-						PROTECTION_RPM_HIGH, 0, 180);
-				Current_Status.RPM_180 =
-						Current_Status.RPM_180 >= 180 ?
-								810 : Current_Status.RPM_180;
-				Current_Status.RPM_270 = mapInt(Current_Status.RPM, 0,
-						PROTECTION_RPM_HIGH, 0, 270);
-				Current_Status.RPM_270 =
-						Current_Status.RPM_270 >= 270 ?
-								270 : Current_Status.RPM_270;
-				Current_Status.RPM_240 = mapInt(Current_Status.RPM, 0,
-						PROTECTION_RPM_HIGH, 0, 240);
-				Current_Status.RPM_240 =
-						Current_Status.RPM_240 >= 240 ?
-								240 : Current_Status.RPM_240;
-				Current_Status.RPM_360 = mapInt(Current_Status.RPM, 0,
-						PROTECTION_RPM_HIGH, 0, 360);
-				Current_Status.RPM_360 =
-						Current_Status.RPM_360 >= 360 ?
-								360 : Current_Status.RPM_360;
-
+				break;
+			case CAN_AIM:
+				switch (RxHeader.StdId) {
+				case 0x5F0:
+					Current_Status.RPM = (uint16_t) ((RxData[1] << 8)
+							+ (RxData[0] & 0x00ff));
+					Current_Status.TPS = (uint16_t) ((RxData[3] << 8)
+							+ (RxData[2] & 0x00ff)) / 65;
+					break;
+				case 0x5F2:
+					Current_Status.IAT = (uint16_t) ((RxData[1] << 8)
+							+ (RxData[0] & 0x00ff)) / 19 - 450;
+					Current_Status.ECT = (uint16_t) ((RxData[3] << 8)
+							+ (RxData[2] & 0x00ff)) / 19 - 450;
+					Current_Status.FUELT = (uint16_t) ((RxData[5] << 8)
+							+ (RxData[4] & 0x00ff)) / 19 - 450;
+					Current_Status.OILT = (uint16_t) ((RxData[7] << 8)
+							+ (RxData[6] & 0x00ff)) / 19 - 450;
+					break;
+				case 0x5F3:
+					Current_Status.MAP = (uint16_t) ((RxData[1] << 8)
+							+ (RxData[0] & 0x00ff)) / 10;
+					Current_Status.BARO = (uint16_t) ((RxData[3] << 8)
+							+ (RxData[2] & 0x00ff)) / 10;
+					Current_Status.OILP = (uint16_t) ((RxData[5] << 8)
+							+ (RxData[4] & 0x00ff)) * 100 / 100;
+					Current_Status.FUELP = (uint16_t) ((RxData[7] << 8)
+							+ (RxData[6] & 0x00ff)) * 100 / 2;
+					break;
+				case 0x5F4:
+					Current_Status.BATT = (uint16_t) ((RxData[3] << 8)
+							+ (RxData[2] & 0x00ff)) / 32;
+					// Current_Status.GEAR = (uint16_t)((RxData[7] << 8) + (RxData[6] & 0x00ff));
+					break;
+				case 0x5F5:
+					//Current_Status.BATT = (uint16_t)((RxData[3] << 8) + (RxData[2] & 0x00ff)) / 32;
+					Current_Status.FUELLEVEL = (uint16_t) ((RxData[7] << 8)
+							+ (RxData[6] & 0x00ff)) * 100 / 100;
+					break;
+				case 0x5F6:
+					Current_Status.LAMBDA1 = (uint16_t) ((RxData[1] << 8)
+							+ (RxData[0] & 0x00ff)) / 2;
+					Current_Status.LAMBDA2 = (uint16_t) ((RxData[3] << 8)
+							+ (RxData[2] & 0x00ff)) / 2;
+					break;
+				}
+				break;
+			default:
+				break;
 			}
-			else {
-
-			}
-		} else {
-			osDelay(60000);
+			Update_RPM_Ranges();
 		}
 	}
-  /* USER CODE END Start_CAN_Task */
 }
 
-/* USER CODE BEGIN Header_Start_ALERT_Task */
-/**
-* @brief Function implementing the ALERT_Task thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_Start_ALERT_Task */
-void Start_ALERT_Task(void *argument)
-{
-  /* USER CODE BEGIN Start_ALERT_Task */
+void SetScreen(void) {
 	strcpy(Current_Status.SCREEN_FIELDS[0].Label.Label, "Coolant Temperature");
 	Current_Status.SCREEN_FIELDS[0].Label.X = 23;
 	Current_Status.SCREEN_FIELDS[0].Label.Y = 81;
@@ -1267,8 +1170,8 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[0].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[0].Value.Alignment = LEFT;
 
-
-	strcpy(Current_Status.SCREEN_FIELDS[1].Label.Label, "Intake Air Temperature");
+	strcpy(Current_Status.SCREEN_FIELDS[1].Label.Label,
+			"Intake Air Temperature");
 	Current_Status.SCREEN_FIELDS[1].Label.X = 23;
 	Current_Status.SCREEN_FIELDS[1].Label.Y = 196;
 	Current_Status.SCREEN_FIELDS[1].Label.Width = 101;
@@ -1288,7 +1191,6 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[1].Value.Width = 44;
 	Current_Status.SCREEN_FIELDS[1].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[1].Value.Alignment = LEFT;
-
 
 	strcpy(Current_Status.SCREEN_FIELDS[2].Label.Label, "OIL Pressure");
 	Current_Status.SCREEN_FIELDS[2].Label.X = 23;
@@ -1310,7 +1212,6 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[2].Value.Width = 44;
 	Current_Status.SCREEN_FIELDS[2].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[2].Value.Alignment = LEFT;
-
 
 	strcpy(Current_Status.SCREEN_FIELDS[3].Label.Label, "FUEL Pressure");
 	Current_Status.SCREEN_FIELDS[3].Label.X = 23;
@@ -1354,7 +1255,6 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[4].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[4].Value.Alignment = LEFT;
 
-
 	strcpy(Current_Status.SCREEN_FIELDS[5].Label.Label, "Battery");
 	Current_Status.SCREEN_FIELDS[5].Label.X = 1160;
 	Current_Status.SCREEN_FIELDS[5].Label.Y = 196;
@@ -1375,7 +1275,6 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[5].Value.Width = 44;
 	Current_Status.SCREEN_FIELDS[5].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[5].Value.Alignment = LEFT;
-
 
 	strcpy(Current_Status.SCREEN_FIELDS[6].Label.Label, "Throttle Position");
 	Current_Status.SCREEN_FIELDS[6].Label.X = 1160;
@@ -1398,7 +1297,6 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[6].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[6].Value.Alignment = LEFT;
 
-
 	strcpy(Current_Status.SCREEN_FIELDS[7].Label.Label, "Wideband");
 	Current_Status.SCREEN_FIELDS[7].Label.X = 1160;
 	Current_Status.SCREEN_FIELDS[7].Label.Y = 430;
@@ -1419,176 +1317,174 @@ void Start_ALERT_Task(void *argument)
 	Current_Status.SCREEN_FIELDS[7].Value.Width = 44;
 	Current_Status.SCREEN_FIELDS[7].Value.Height = 96;
 	Current_Status.SCREEN_FIELDS[7].Value.Alignment = LEFT;
+}
+
+void initAll(void) {
+	Current_Status.LCD_BRIGHTNESS = LCD_DEFAULT_BRIGHTNESS;
+	Current_Status.LCD_BRIGHTNESS_CHANGED = 1;
+	htim13.Instance->CCR1 = Current_Status.LCD_BRIGHTNESS;
+
+	Current_Status.CAN_ENABLED = 0;
+	Current_Status.RGB_ENABLED = 1;
+	Current_Status.RPM_SWEEP = 1;
+	Current_Status.CAN_PROTOCOL = CAN_AIM;
+	Current_Status.PRES_UNIT = kPa;
+	Current_Status.TEMP_UNIT = C;
+	Current_Status.SPEED_UNIT = Kmh;
+
+	SetScreen();
+	HAL_TIM_PWM_Start(&htim13, TIM_CHANNEL_1);
+	initWS2812();
 
 
-//	Current_Status.SCREEN_FIELDS[1].Label.Label = "IAT";
-//	Current_Status.SCREEN_FIELDS[1].Unit.Label = "°C";
-//
-//	Current_Status.SCREEN_FIELDS[2].Label.Label = "Oil Pressure";
-//	Current_Status.SCREEN_FIELDS[2].Unit.Label = "kPa";
-//
-//	Current_Status.SCREEN_FIELDS[3].Label.Label = "Fuel Pressure";
-//	Current_Status.SCREEN_FIELDS[3].Unit.Label = "kPa";
-//
-//	Current_Status.SCREEN_FIELDS[4].Label.Label = "MAP";
-//	Current_Status.SCREEN_FIELDS[4].Unit.Label = "kPa";
-//
-//	Current_Status.SCREEN_FIELDS[5].Label.Label = "Battery";
-//	Current_Status.SCREEN_FIELDS[5].Unit.Label = "V";
-//
-//	Current_Status.SCREEN_FIELDS[6].Label.Label = "TPS";
-//	Current_Status.SCREEN_FIELDS[6].Unit.Label = "%";
-//
-//	Current_Status.SCREEN_FIELDS[7].Label.Label = "Wideband";
-//	Current_Status.SCREEN_FIELDS[7].Unit.Label = "Lambda";
+	HAL_GPIO_WritePin(CAN1_S0_GPIO_Port, CAN1_S0_Pin, SET);
+	HAL_GPIO_WritePin(CAN2_S0_GPIO_Port, CAN2_S0_Pin, SET);
 
-	TickType_t xStart, xEnd, xDifference;
+}
 
-  /* Infinite loop */
-  for(;;)
-  {
-//		Current_Status.OK_L1 = true;
-//		Current_Status.ALERT_L1 = false;
-//		Current_Status.WARNING_L1 = false;
-//		osDelay(100);
-//		Current_Status.OK_L1 = false;
-//		Current_Status.ALERT_L1 = false;
-//		Current_Status.WARNING_L1 = true;
-//		osDelay(100);
-//		Current_Status.OK_L1 = false;
-//		Current_Status.ALERT_L1 = true;
-//		Current_Status.WARNING_L1 = false;
-//		osDelay(100);
-//		Current_Status.OK_L1 = false;
-//		Current_Status.ALERT_L1 = false;
-//		Current_Status.WARNING_L1 = false;
-//		osDelay(100);
-//
-//		Current_Status.OK_L2 = true;
-//		Current_Status.ALERT_L2 = false;
-//		Current_Status.WARNING_L2 = false;
-//		osDelay(100);
-//		Current_Status.OK_L2 = false;
-//		Current_Status.ALERT_L2 = false;
-//		Current_Status.WARNING_L2 = true;
-//		osDelay(100);
-//		Current_Status.OK_L2 = false;
-//		Current_Status.ALERT_L2 = true;
-//		Current_Status.WARNING_L2 = false;
-//		osDelay(100);
-//		Current_Status.OK_L2 = false;
-//		Current_Status.ALERT_L2 = false;
-//		Current_Status.WARNING_L2 = false;
-//		osDelay(100);
-//
-//		Current_Status.OK_L3 = true;
-//		Current_Status.ALERT_L3 = false;
-//		Current_Status.WARNING_L3 = false;
-//		osDelay(100);
-//		Current_Status.OK_L3 = false;
-//		Current_Status.ALERT_L3 = false;
-//		Current_Status.WARNING_L3 = true;
-//		osDelay(100);
-//		Current_Status.OK_L3 = false;
-//		Current_Status.ALERT_L3 = true;
-//		Current_Status.WARNING_L3 = false;
-//		osDelay(100);
-//		Current_Status.OK_L3 = false;
-//		Current_Status.ALERT_L3 = false;
-//		Current_Status.WARNING_L3 = false;
-//		osDelay(100);
-//
-//		Current_Status.OK_L4 = true;
-//		Current_Status.ALERT_L4 = false;
-//		Current_Status.WARNING_L4 = false;
-//		osDelay(100);
-//		Current_Status.OK_L4 = false;
-//		Current_Status.ALERT_L4 = false;
-//		Current_Status.WARNING_L4 = true;
-//		osDelay(100);
-//		Current_Status.OK_L4 = false;
-//		Current_Status.ALERT_L4 = true;
-//		Current_Status.WARNING_L4 = false;
-//		osDelay(100);
-//		Current_Status.OK_L4 = false;
-//		Current_Status.ALERT_L4 = false;
-//		Current_Status.WARNING_L4 = false;
+/* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_Start_START_Task */
+/**
+ * @brief  Function implementing the START_Task thread.
+ * @param  argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_Start_START_Task */
+void Start_START_Task(void *argument)
+{
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
+  /* USER CODE BEGIN 5 */
+	osDelay(250);
+
+
+	if (Current_Status.RPM_SWEEP == 1) {
+		for (int i = 0; i < PROTECTION_RPM_HIGH / 100; ++i) {
+			Current_Status.RPM = i * 100;
+			Update_RPM_Ranges();
+			osDelay(10);
+		}
+		for (int i = PROTECTION_RPM_HIGH / 100; i > 0; --i) {
+			Current_Status.RPM = i * 100;
+			Update_RPM_Ranges();
+			osDelay(10);
+		}
+	}
+	Current_Status.RPM = 0;
+	Update_RPM_Ranges();
+
+	Current_Status.CAN_ENABLED = 1;
+	for (;;) {
+
+		if (Current_Status.LCD_BRIGHTNESS_CHANGED == 1) {
+			htim13.Instance->CCR1 = Current_Status.LCD_BRIGHTNESS;
+			Current_Status.LCD_BRIGHTNESS_CHANGED = 0;
+		}
+
+		HAL_GPIO_TogglePin(LED_ACTIVE_GPIO_Port, LED_ACTIVE_Pin);
+		osDelay(1000);
+	}
+
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_TouchGFX_Task */
+/**
+ * @brief Function implementing the TouchGFXTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_TouchGFX_Task */
+__weak void TouchGFX_Task(void *argument)
+{
+  /* USER CODE BEGIN TouchGFX_Task */
+	/* Infinite loop */
+	for (;;) {
 		osDelay(1);
-  }
-  /* USER CODE END Start_ALERT_Task */
+	}
+  /* USER CODE END TouchGFX_Task */
 }
 
 /* USER CODE BEGIN Header_Start_RGB_Task */
 /**
-* @brief Function implementing the RGB_Task thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the RGB_Task thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_Start_RGB_Task */
 void Start_RGB_Task(void *argument)
 {
   /* USER CODE BEGIN Start_RGB_Task */
 
-    setWS2812Brightness(5);
-		/* Infinite loop */
-		for (;;) {
-				if (RGB_ENABLED) {
-					//Current_Status.RPM = Current_Status.RPM >= PROTECTION_RPM_HIGH ? 0 : Current_Status.RPM;
-					//Current_Status.RPM = Current_Status.RPM + 100;
+	setWS2812Brightness(5);
+	/* Infinite loop */
+	for (;;) {
+		if (Current_Status.RGB_ENABLED) {
+			//Current_Status.RPM = Current_Status.RPM >= PROTECTION_RPM_HIGH ? 0 : Current_Status.RPM;
+			//Current_Status.RPM = Current_Status.RPM + 100;
 
-					Current_Status.ENGINE_PROTECTION = Current_Status.RPM >= PROTECTION_RPM_HIGH ? 1 : 0;
+			Current_Status.ENGINE_PROTECTION =
+					Current_Status.RPM >= PROTECTION_RPM_HIGH ? 1 : 0;
 
+			clearWS2812All();
+			uint8_t RPMLED = WS2812_LED_N;
 
-					clearWS2812All();
-					uint8_t RPMLED = WS2812_LED_N;
+			uint16_t lowRange = mapInt(Current_Status.RPM, PROTECTION_RPM_LOW,
+					0, RPMLED - PROTECTION_RPM_LED, 1);
+			lowRange =
+					lowRange > RPMLED - PROTECTION_RPM_LED ?
+							RPMLED - PROTECTION_RPM_LED : lowRange;
+			lowRange = lowRange < 1 ? 1 : lowRange;
 
-					uint16_t lowRange = mapInt(Current_Status.RPM, PROTECTION_RPM_LOW, 0, RPMLED - PROTECTION_RPM_LED, 1);
-					lowRange = lowRange > RPMLED - PROTECTION_RPM_LED ? RPMLED - PROTECTION_RPM_LED : lowRange;
-					lowRange = lowRange < 1 ? 1 : lowRange;
+			for (int i = 1; i <= lowRange; i++) {
+				WS2812_RGB_t color;
+				if (Current_Status.ENGINE_PROTECTION == 1) {
+					color.red = 0;
+					color.green = 255;
+					color.blue = 0;
+				} else {
+					color.red = 0;
+					color.green = 255;
+					color.blue = 0;
+				}
+				setWS2812One((RPMLED - i) + (WS2812_LED_N - RPMLED), color);
+			}
 
-					for (int i = 1; i <= lowRange; i++) {
-						WS2812_RGB_t color;
-						if (Current_Status.ENGINE_PROTECTION == 1) {
-							color.red = 0;
-							color.green = 255;
-							color.blue = 0;
-						} else {
-							color.red = 0;
-							color.green = 255;
-							color.blue = 0;
-						}
-						setWS2812One((RPMLED - i) + (WS2812_LED_N - RPMLED), color);
-					}
+			if (Current_Status.RPM > PROTECTION_RPM_LOW) {
+				uint16_t highRange = mapInt(Current_Status.RPM,
+						PROTECTION_RPM_HIGH, PROTECTION_RPM_LOW,
+						PROTECTION_RPM_LED, 1);
+				for (int i = 1; i <= highRange; i++) {
+					WS2812_RGB_t color;
+					color.red = 255;
+					color.green = 0;
+					color.blue = 0;
 
-					if (Current_Status.RPM > PROTECTION_RPM_LOW) {
-						uint16_t highRange = mapInt(Current_Status.RPM, PROTECTION_RPM_HIGH, PROTECTION_RPM_LOW, PROTECTION_RPM_LED, 1);
-						for (int i = 1; i <= highRange; i++) {
-							WS2812_RGB_t color;
-							color.red = 255;
-							color.green = 0;
-							color.blue = 0;
+					setWS2812One(
+							(PROTECTION_RPM_LED - i) + (WS2812_LED_N - RPMLED),
+							color);
+				}
 
-							setWS2812One((PROTECTION_RPM_LED - i) + (WS2812_LED_N - RPMLED), color);
-						}
+				updateWS2812();
+				osDelay(50);
 
-						updateWS2812();
-						osDelay(50);
+				for (int i = 1; i <= highRange; i++) {
+					WS2812_RGB_t color;
+					color.red = 0;
+					color.green = 0;
+					color.blue = 0;
 
-						for (int i = 1; i <= highRange; i++) {
-							WS2812_RGB_t color;
-							color.red = 0;
-							color.green = 0;
-							color.blue = 0;
-
-							setWS2812One((PROTECTION_RPM_LED - i) + (WS2812_LED_N - RPMLED), color);
-						}
-					}
-
-
-					updateWS2812();
-					osDelay(100);
+					setWS2812One(
+							(PROTECTION_RPM_LED - i) + (WS2812_LED_N - RPMLED),
+							color);
 				}
 			}
+
+			updateWS2812();
+			osDelay(100);
+		}
+	}
   /* USER CODE END Start_RGB_Task */
 }
 
