@@ -56,7 +56,6 @@
 ADC_HandleTypeDef hadc1;
 
 CAN_HandleTypeDef hcan1;
-CAN_HandleTypeDef hcan2;
 
 CRC_HandleTypeDef hcrc;
 
@@ -116,7 +115,6 @@ static void MX_TIM13_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_CAN2_Init(void);
 void Start_START_Task(void *argument);
 void TouchGFX_Task(void *argument);
 void Start_RGB_Task(void *argument);
@@ -164,7 +162,6 @@ int main(void)
   MX_CAN1_Init();
   MX_ADC1_Init();
   MX_TIM1_Init();
-  MX_CAN2_Init();
   MX_TouchGFX_Init();
   /* Call PreOsInit function */
   MX_TouchGFX_PreOSInit();
@@ -384,67 +381,6 @@ static void MX_CAN1_Init(void)
 	}
 	__HAL_RCC_CAN1_CLK_ENABLE();
   /* USER CODE END CAN1_Init 2 */
-
-}
-
-/**
-  * @brief CAN2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_CAN2_Init(void)
-{
-
-  /* USER CODE BEGIN CAN2_Init 0 */
-
-	CAN_FilterTypeDef sFilterConfig; //declare CAN filter structure
-  /* USER CODE END CAN2_Init 0 */
-
-  /* USER CODE BEGIN CAN2_Init 1 */
-
-  /* USER CODE END CAN2_Init 1 */
-  hcan2.Instance = CAN2;
-  hcan2.Init.Prescaler = 16;
-  hcan2.Init.Mode = CAN_MODE_NORMAL;
-  hcan2.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan2.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan2.Init.TimeSeg2 = CAN_BS2_1TQ;
-  hcan2.Init.TimeTriggeredMode = DISABLE;
-  hcan2.Init.AutoBusOff = DISABLE;
-  hcan2.Init.AutoWakeUp = DISABLE;
-  hcan2.Init.AutoRetransmission = DISABLE;
-  hcan2.Init.ReceiveFifoLocked = DISABLE;
-  hcan2.Init.TransmitFifoPriority = DISABLE;
-  if (HAL_CAN_Init(&hcan2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN CAN2_Init 2 */
-
-	sFilterConfig.FilterBank = 15;
-	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-	sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
-	sFilterConfig.FilterIdHigh = 0x0000;
-	sFilterConfig.FilterIdLow = 0x0000;
-	sFilterConfig.FilterMaskIdHigh = 0x0000;
-	sFilterConfig.FilterMaskIdLow = 0x0000;
-	sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
-	sFilterConfig.FilterActivation = ENABLE;
-	//sFilterConfig.SlaveStartFilterBank = 14;
-	if (HAL_CAN_ConfigFilter(&hcan2, &sFilterConfig) != HAL_OK) {
-		/* Filter configuration Error */
-		Error_Handler();
-	}
-	if (HAL_CAN_Start(&hcan2) != HAL_OK) {
-		/* Start Error */
-		Error_Handler();
-	}
-	if (HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING)
-			!= HAL_OK) {
-		Error_Handler();
-	}
-	__HAL_RCC_CAN2_CLK_ENABLE();
-  /* USER CODE END CAN2_Init 2 */
 
 }
 
@@ -750,7 +686,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(TOUCH_RST_PC13_GPIO_Port, TOUCH_RST_PC13_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOF, CAN1_S0_Pin|CAN2_S0_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOF, CAN1_S0_Pin|CAN2_S0_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SD_CS_PIN_GPIO_Port, SD_CS_PIN_Pin, GPIO_PIN_RESET);
@@ -787,9 +723,9 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : CAN1_S0_Pin CAN2_S0_Pin */
   GPIO_InitStruct.Pin = CAN1_S0_Pin|CAN2_S0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /*Configure GPIO pins : HALL_OUT_Pin BTN_2_PC6_Pin BTN_1_PC7_Pin BTN_4_PE5_Pin
@@ -814,6 +750,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB12 PB13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF9_CAN2;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA8 */
@@ -906,8 +850,8 @@ void Update_RPM_Ranges() {
 }
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-	if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData)
-			== HAL_OK) {
+	if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK) {
+
 		if (Current_Status.CAN_ENABLED == 1) {
 
 			HAL_GPIO_TogglePin(LED_CAN1_GPIO_Port, LED_CAN1_Pin);
@@ -1320,6 +1264,7 @@ void SetScreen(void) {
 }
 
 void initAll(void) {
+
 	Current_Status.LCD_BRIGHTNESS = LCD_DEFAULT_BRIGHTNESS;
 	Current_Status.LCD_BRIGHTNESS_CHANGED = 1;
 	htim13.Instance->CCR1 = Current_Status.LCD_BRIGHTNESS;
@@ -1336,9 +1281,6 @@ void initAll(void) {
 	HAL_TIM_PWM_Start(&htim13, TIM_CHANNEL_1);
 	initWS2812();
 
-
-	HAL_GPIO_WritePin(CAN1_S0_GPIO_Port, CAN1_S0_Pin, SET);
-	HAL_GPIO_WritePin(CAN2_S0_GPIO_Port, CAN2_S0_Pin, SET);
 
 }
 
@@ -1358,7 +1300,6 @@ void Start_START_Task(void *argument)
   /* USER CODE BEGIN 5 */
 	osDelay(250);
 
-
 	if (Current_Status.RPM_SWEEP == 1) {
 		for (int i = 0; i < PROTECTION_RPM_HIGH / 100; ++i) {
 			Current_Status.RPM = i * 100;
@@ -1373,8 +1314,8 @@ void Start_START_Task(void *argument)
 	}
 	Current_Status.RPM = 0;
 	Update_RPM_Ranges();
-
 	Current_Status.CAN_ENABLED = 1;
+
 	for (;;) {
 
 		if (Current_Status.LCD_BRIGHTNESS_CHANGED == 1) {
